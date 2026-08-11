@@ -1,0 +1,7 @@
+asgiref
+colorama
+Django
+django-cors-headers
+djangorestframework
+py3dbp
+sqlparse
