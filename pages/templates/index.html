@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Box Selection System</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg: #F3F4F6;
+            --surface: #FFFFFF;
+            --text: #1F2937;
+            --border: #E5E7EB;
+            --error: #EF4444;
+            --success: #10B981;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            display: grid;
+            gap: 2rem;
+        }
+
+        .card {
+            background: var(--surface);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        h2 { margin-top: 0; font-size: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .input-group.full-width { grid-column: 1 / -1; }
+
+        label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem; }
+        
+        input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 0.25rem;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            font-weight: 500;
+            width: 100%;
+        }
+
+        button:hover { background-color: var(--primary-hover); }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+        th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid var(--border); }
+        th { font-weight: 600; font-size: 0.875rem; }
+
+        #result-box {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            display: none;
+            font-weight: 500;
+        }
+
+        .result-success { background-color: #D1FAE5; color: #065F46; border: 1px solid #34D399; }
+        .result-warning { background-color: #FEF3C7; color: #92400E; border: 1px solid #FBBF24; }
+        .result-error { background-color: #FEE2E2; color: #991B1B; border: 1px solid #F87171; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Add Item Form -->
+        <div class="card">
+            <h2>Add Item to Cart</h2>
+            <div class="input-grid">
+                <div class="input-group full-width">
+                    <label>Item Name</label>
+                    <input type="text" id="itemName" placeholder="e.g., Mechanical Keyboard">
+                </div>
+                <div class="input-group">
+                    <label>Length (cm)</label>
+                    <input type="number" id="itemLength" step="0.1">
+                </div>
+                <div class="input-group">
+                    <label>Width (cm)</label>
+                    <input type="number" id="itemWidth" step="0.1">
+                </div>
+                <div class="input-group">
+                    <label>Height (cm)</label>
+                    <input type="number" id="itemHeight" step="0.1">
+                </div>
+                <div class="input-group">
+                    <label>Weight (kg)</label>
+                    <input type="number" id="itemWeight" step="0.1">
+                </div>
+                <div class="input-group">
+                    <label>Quantity</label>
+                    <input type="number" id="itemQuantity" value="1" min="1">
+                </div>
+            </div>
+            <button onclick="addItem()">Add to Cart</button>
+        </div>
+
+        <!-- Cart View -->
+        <div class="card">
+            <h2>Current Cart</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Dimensions</th>
+                        <th>Weight</th>
+                        <th>Qty</th>
+                    </tr>
+                </thead>
+                <tbody id="cartBody">
+                    <!-- Cart items will render here -->
+                </tbody>
+            </table>
+            
+            <button onclick="submitOrder()" style="background-color: var(--success);">Calculate Best Box</button>
+            
+            <!-- Result Display -->
+            <div id="result-box"></div>
+        </div>
+    </div>
+
+    <script>
+        // CHANGE THIS TO MATCH YOUR DJANGO ENDPOINT
+        const API_URL = "http://localhost:8000/box/selection/get/";
+        
+        let cart = [];
+
+        function addItem() {
+            const name = document.getElementById('itemName').value || "Unnamed Item";
+            const length = parseFloat(document.getElementById('itemLength').value);
+            const width = parseFloat(document.getElementById('itemWidth').value);
+            const height = parseFloat(document.getElementById('itemHeight').value);
+            const weight = parseFloat(document.getElementById('itemWeight').value);
+            const quantity = parseInt(document.getElementById('itemQuantity').value);
+
+            if (!length || !width || !height || !weight) {
+                alert("Please fill in all dimensions and weight.");
+                return;
+            }
+
+            cart.push({ name, length, width, height, weight, quantity });
+            renderCart();
+            
+            // Clear inputs for the next item
+            document.getElementById('itemName').value = '';
+            document.getElementById('itemLength').value = '';
+            document.getElementById('itemWidth').value = '';
+            document.getElementById('itemHeight').value = '';
+            document.getElementById('itemWeight').value = '';
+            document.getElementById('itemQuantity').value = '1';
+        }
+
+        function renderCart() {
+            const tbody = document.getElementById('cartBody');
+            tbody.innerHTML = '';
+            
+            if (cart.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #6B7280;">Cart is empty</td></tr>';
+                return;
+            }
+
+            cart.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.name}</td>
+                    <td>${item.length} x ${item.width} x ${item.height}</td>
+                    <td>${item.weight} kg</td>
+                    <td>${item.quantity}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function submitOrder() {
+            const resultBox = document.getElementById('result-box');
+            
+            if (cart.length === 0) {
+                alert("Add at least one item to the cart first.");
+                return;
+            }
+
+            resultBox.style.display = 'block';
+            resultBox.className = '';
+            resultBox.innerText = 'Calculating...';
+
+            const payload = {
+                order_id: "TEST-" + Math.floor(Math.random() * 10000),
+                items: cart
+            };
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.best_box && data.best_box.code === "not-possible-in-single-box") {
+                        // Handled case: Order is too big for any single box
+                        resultBox.className = 'result-warning';
+                        resultBox.innerText = "Order too large: Cannot fit all items into a single available box.";
+                    } else if (data.best_box && data.best_box.name) {
+                        // Success case: Found a box
+                        resultBox.className = 'result-success';
+                        resultBox.innerHTML = `
+                            <strong>Success! Best Box Found:</strong><br>
+                            Box: ${data.best_box.name}<br>
+                            Cost: $${data.best_box.cost}<br>
+                            Max Weight Capacity: ${data.best_box.weight} kg
+                        `;
+                    } else {
+                        // Fallback for unexpected 200 response shapes
+                        resultBox.className = 'result-warning';
+                        resultBox.innerText = "Received response, but couldn't parse the box data.";
+                    }
+                } else {
+                    // Server returned 500 or other error
+                    resultBox.className = 'result-error';
+                    resultBox.innerText = `Error: ${data.error || "Internal Server Error"}`;
+                }
+
+            } catch (error) {
+                // Network error, CORS issue, or server is down
+                resultBox.className = 'result-error';
+                resultBox.innerText = "Network Error: Could not reach the API. Check your server terminal and ensure CORS is configured.";
+            }
+        }
+
+        // Initial render
+        renderCart();
+    </script>
+</body>
+</html>
